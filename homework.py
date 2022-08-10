@@ -114,7 +114,10 @@ def check_tokens():
 def main():
     """Основная логика работы бота."""
     logger.debug('main function is started')
-    check_status = 'no status'
+    check_dict = {
+        'homework_name': '',
+        'status': ''
+    }
     last_error = 'no errors'
     bot = Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
@@ -124,7 +127,6 @@ def main():
     if not check_tokens():
         logger.critical('Critical error. No ".env" data. Shutdown')
         sys.exit()
-    logger.debug('check_tokens function ended sucsesfully')
 
     while True:
         try:
@@ -138,14 +140,20 @@ def main():
             if homework:
                 logger.debug('parse_status function is started')
                 message = parse_status(homework)
-                logger.debug('checking for status updates')
-                logger.debug(f'check_status is "{check_status}"')
-                logger.debug(f'homework["status"] is "{homework["status"]}"')
-                logger.debug('check_status != homework["status"]:')
-                logger.debug(f'{check_status != homework["status"]}')
-                if check_status != homework['status']:
-                    check_status = homework['status']
-                    logger.debug(f'check_status now is {check_status}')
+                logger.debug('checking for name and status updates')
+                logger.debug(
+                    f'old homework name is {check_dict["homework_name"]}'
+                )
+                logger.debug(f'old status is {check_dict["status"]}')
+                logger.debug(
+                    f'new homework name is {homework["homework_name"]}'
+                )
+                logger.debug(f'new status is {homework["status"]}')
+                if (check_dict['homework_name'] != homework['homework_name']
+                   or check_dict['status'] != homework['status']):
+                    check_dict['homework_name'] = homework['homework_name']
+                    check_dict['status'] = homework['status']
+                    logger.debug('new name and status rewrited')
                     logger.debug('send_message function is started')
                     send_message(bot, message)
                     logger.info(f'Bot just sent a message: {message}')
