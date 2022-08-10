@@ -78,15 +78,14 @@ def check_response(response):
         raise TypeError(
             f'type of homework_list is not a list, but {type(homework_list)}'
         )
-    try:
-        homework = homework_list[0]
-    except IndexError:
-        raise IndexError('homework list is empty')
+    if not homework_list:
+        return None
+    homework = homework_list[0]
     return homework
 
 
 def parse_status(homework):
-    """Проверяем изменение статуса проверки работы."""
+    """Извлекаем из информации о домашней работе статус этой работы."""
     if 'homework_name' not in homework:
         raise KeyError('key "homework_name" is missing')
     homework_name = homework['homework_name']
@@ -115,12 +114,8 @@ def check_tokens():
 def main():
     """Основная логика работы бота."""
     logger.debug('main function is started')
-    hw_status = None
-    check_dict = {
-        'homework_name': '',
-        'status': '',
-    }
-    error_list = []
+    check_status = 'no status'
+    last_error = 'no errors'
     bot = Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
     logger.debug(f'current_timestamp is {current_timestamp}')
@@ -129,6 +124,7 @@ def main():
     if not check_tokens():
         logger.critical('Critical error. No ".env" data. Shutdown')
         sys.exit()
+    logger.debug('check_tokens function ended sucsesfully')
 
     while True:
         try:
@@ -137,30 +133,21 @@ def main():
             logger.debug(f'response is {response}')
             logger.debug('check_response function is started')
             homework = check_response(response)
+            logger.debug('checking for homework')
             logger.debug(f'homework is {homework}')
-            logger.debug('checking for response updates')
-            logger.debug(f'number of homeworks: {len(response["homeworks"])}')
-
-            if len(response['homeworks']) != 0:
+            if homework:
                 logger.debug('parse_status function is started')
                 message = parse_status(homework)
-                logger.debug(f'message is {message}')
                 logger.debug('checking for status updates')
-                logger.debug(f'{hw_status} != {homework["status"]}')
-                logger.debug(f'{hw_status != homework["status"]}')
-
-                # Да, тут 2 ifа друг под другом, но их объединить не получится
-                # (либо я не знаю, как это сделать). Потому что тесты не дают
-                # вынести проверку на 'status' из функции parse_status (не
-                # проходят иначе), а если её не запускать перед следующим ifом
-                # то возникает шанс натолкнуться на KeyError
-
-                if hw_status != homework['status']:
-                    hw_status = homework['status']
-                    logger.debug(f'hw_status now is {hw_status}')
+                logger.debug(f'check_status is "{check_status}"')
+                logger.debug(f'homework["status"] is "{homework["status"]}"')
+                logger.debug('check_status != homework["status"]:')
+                logger.debug(f'{check_status != homework["status"]}')
+                if check_status != homework['status']:
+                    check_status = homework['status']
+                    logger.debug(f'check_status now is {check_status}')
                     logger.debug('send_message function is started')
                     send_message(bot, message)
-
                     logger.info(f'Bot just sent a message: {message}')
             logger.debug(f'go to sleep for {RETRY_TIME}s')
             time.sleep(RETRY_TIME)
@@ -168,11 +155,12 @@ def main():
             logger.debug(f'Change current_timestamp to {current_timestamp}')
 
         except Exception as error:
-            error_list.append(error)
             message = f'an error in the program: {error}'
             logger.error(message)
-            if error != error_list[0]:
+            if error != last_error:
                 send_message(bot, message)
+                last_error = error
+                logger.debug(f'{last_error}, {error}')
             time.sleep(RETRY_TIME)
         else:
             pass
