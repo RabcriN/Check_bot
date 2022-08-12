@@ -5,7 +5,9 @@ import time
 
 import requests
 from dotenv import load_dotenv
-from telegram import Bot
+from telegram import Bot, TelegramError
+
+from exceptions import SendMessageError
 
 load_dotenv()
 
@@ -33,18 +35,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class SendMessageError(Exception):
-    """Кастомный класс для ошибки отправки сообщения."""
-
-    pass
-
-
 def send_message(bot, message):
     """Отправляем сообщение в телеграм чат."""
     chat_id = TELEGRAM_CHAT_ID
     try:
         bot.send_message(chat_id, message)
-    except Exception:
+    except TelegramError:
         raise SendMessageError
 
 
@@ -160,9 +156,14 @@ def main():
                     logger.debug('send_message function is started')
                     send_message(bot, message)
                     logger.info(f'Bot just sent a message: {message}')
+            current_timestamp = (
+                response.get('current_date', default=current_timestamp)
+            )
+            logger.debug(f'current_timestamp = {response.get("current_date")}')
         except SendMessageError:
-            logger.error("Can't send a message."
-                         " An error in the send_message function")
+            logger.error(
+                "Can't send a message. An error in the send_message function"
+            )
         except Exception as error:
             message = f'an error in the program: {error}'
             logger.error(message)
@@ -170,16 +171,9 @@ def main():
                 send_message(bot, message)
                 last_error = error
                 logger.debug(f'{last_error}, {error}')
-        else:
-            pass
         finally:
             logger.debug(f'go to sleep for {RETRY_TIME}s')
             time.sleep(RETRY_TIME)
-            current_timestamp = (
-                response.get('current_date')
-                or int(time.time())
-            )
-            logger.debug(f'current_timestamp = {response.get("current_date")}')
 
 
 if __name__ == '__main__':

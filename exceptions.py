@@ -1,4 +1,4 @@
-class NotExpectedResponceError(Exception):
-    """API response is not 200."""
+class SendMessageError(Exception):
+    """Кастомный класс для ошибки отправки сообщения."""
 
     pass
