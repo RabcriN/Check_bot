@@ -5,7 +5,7 @@ import time
 
 import requests
 from dotenv import load_dotenv
-from telegram import Bot, TelegramError
+from telegram import Bot
 
 load_dotenv()
 
@@ -15,8 +15,8 @@ TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 RETRY_TIME = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
-HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
+HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
 HOMEWORK_STATUSES = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
@@ -33,13 +33,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class SendMessageError(Exception):
+    """Кастомный класс для ошибки отправки сообщения."""
+
+    pass
+
+
 def send_message(bot, message):
     """Отправляем сообщение в телеграм чат."""
     chat_id = TELEGRAM_CHAT_ID
     try:
         bot.send_message(chat_id, message)
-    except TelegramError:
-        raise TelegramError('an error in send_message function')
+    except Exception:
+        raise SendMessageError
 
 
 def get_api_answer(current_timestamp):
@@ -66,7 +72,7 @@ def get_api_answer(current_timestamp):
 
 def check_response(response):
     """Проверяем полученный ответ."""
-    if type(response) is not dict:
+    if not isinstance(response, dict):
         raise TypeError(
             f'type of response is not a dict, but {type(response)}'
         )
@@ -74,7 +80,7 @@ def check_response(response):
         homework_list = response['homeworks']
     except KeyError:
         raise KeyError('key "homeworks" is missing')
-    if type(homework_list) is not list:
+    if not isinstance(homework_list, list):
         raise TypeError(
             f'type of homework_list is not a list, but {type(homework_list)}'
         )
@@ -122,12 +128,10 @@ def main():
     bot = Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
     logger.debug(f'current_timestamp is {current_timestamp}')
-
     logger.debug('check_tokens function is started')
     if not check_tokens():
         logger.critical('Critical error. No ".env" data. Shutdown')
         sys.exit()
-
     while True:
         try:
             logger.debug('get_api_answer function is started')
@@ -140,28 +144,25 @@ def main():
             if homework:
                 logger.debug('parse_status function is started')
                 message = parse_status(homework)
-                logger.debug('checking for name and status updates')
+                logger.debug('checking homework updates')
+                logger.debug(f'old homework is {check_dict}')
+                current_homework = {
+                    'homework_name': homework['homework_name'],
+                    'status': homework['status']
+                }
+                logger.debug(f'new_homework is {current_homework}')
                 logger.debug(
-                    f'old homework name is {check_dict["homework_name"]}'
+                    f'homework != check_dict: {homework != check_dict}'
                 )
-                logger.debug(f'old status is {check_dict["status"]}')
-                logger.debug(
-                    f'new homework name is {homework["homework_name"]}'
-                )
-                logger.debug(f'new status is {homework["status"]}')
-                if (check_dict['homework_name'] != homework['homework_name']
-                   or check_dict['status'] != homework['status']):
-                    check_dict['homework_name'] = homework['homework_name']
-                    check_dict['status'] = homework['status']
-                    logger.debug('new name and status rewrited')
+                if current_homework != check_dict:
+                    check_dict = current_homework
+                    logger.debug(f'homework updated and now is {check_dict}')
                     logger.debug('send_message function is started')
                     send_message(bot, message)
                     logger.info(f'Bot just sent a message: {message}')
-            logger.debug(f'go to sleep for {RETRY_TIME}s')
-            time.sleep(RETRY_TIME)
-            current_timestamp = int(time.time())
-            logger.debug(f'Change current_timestamp to {current_timestamp}')
-
+        except SendMessageError:
+            logger.error("Can't send a message."
+                         " An error in the send_message function")
         except Exception as error:
             message = f'an error in the program: {error}'
             logger.error(message)
@@ -169,9 +170,16 @@ def main():
                 send_message(bot, message)
                 last_error = error
                 logger.debug(f'{last_error}, {error}')
-            time.sleep(RETRY_TIME)
         else:
             pass
+        finally:
+            logger.debug(f'go to sleep for {RETRY_TIME}s')
+            time.sleep(RETRY_TIME)
+            current_timestamp = (
+                response.get('current_date')
+                or int(time.time())
+            )
+            logger.debug(f'current_timestamp = {response.get("current_date")}')
 
 
 if __name__ == '__main__':
