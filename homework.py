@@ -159,7 +159,7 @@ def main():
             current_timestamp = (
                 response.get('current_date', default=current_timestamp)
             )
-            logger.debug(f'current_timestamp = {response.get("current_date")}')
+            logger.debug(f'current_timestamp is {current_timestamp}')
         except SendMessageError:
             logger.error(
                 "Can't send a message. An error in the send_message function"
